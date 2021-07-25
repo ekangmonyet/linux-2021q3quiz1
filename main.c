@@ -210,17 +210,18 @@ static const struct file_operations fops = {
 static dev_t dev;
 static int _hideproc_init(void)
 {
+	dev_t _dev;
 	int err, dev_major;
 	printk(KERN_INFO "@ %s\n", __func__);
-	err = alloc_chrdev_region(&dev, 0, MINOR_VERSION, DEVICE_NAME);
-	dev_major = MAJOR(dev);
+	err = alloc_chrdev_region(&_dev, 0, MINOR_VERSION, DEVICE_NAME);
+	dev_major = MAJOR(_dev);
 
 	hideproc_class = class_create(THIS_MODULE, DEVICE_NAME);
 
+	dev = MKDEV(dev_major, MINOR_VERSION);
 	cdev_init(&cdev, &fops);
-	cdev_add(&cdev, MKDEV(dev_major, MINOR_VERSION), 1);
-	device_create(hideproc_class, NULL, MKDEV(dev_major, MINOR_VERSION),
-		      NULL, DEVICE_NAME);
+	cdev_add(&cdev, dev, 1);
+	device_create(hideproc_class, NULL, dev, NULL, DEVICE_NAME);
 
 	init_hook();
 
