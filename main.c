@@ -1,10 +1,8 @@
 #include <linux/cdev.h>
 #include <linux/ftrace.h>
 #include <linux/idr.h>
-#include <linux/kallsyms.h>
 #include <linux/list.h>
 #include <linux/module.h>
-#include <linux/proc_fs.h>
 #include <linux/slab.h>
 
 MODULE_LICENSE("GPL");
