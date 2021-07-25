@@ -79,9 +79,9 @@ static bool is_hidden_proc(pid_t pid)
 {
 	pid_node_t *proc, *tmp_proc;
 	list_for_each_entry_safe (proc, tmp_proc, &hidden_proc, list_node) {
-	if (proc->id == pid)
-		return true;
-	}
+		if (proc->id == pid)
+			return true;
+		}
 	return false;
 }
 
